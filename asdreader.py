@@ -24,6 +24,7 @@ Tec1_alarm = 8
 Tec2_alarm = 16
 
 
+
 def parse_constituants(asd, offset):
     name, offset = parse_bstr(asd, offset)
     passfail, offset = parse_bstr(asd, offset)
@@ -288,6 +289,9 @@ class reader:
 
     def get_white_reference(self):
         return normalise_spectrum(self.reference, self.md)
+    
+    def get_spectra_type(self):
+        return spectra_type[self.md.data_type]
 
 # print('\n'.join([str(i) for i in struct.unpack_from(asdformat, data)]))
 
