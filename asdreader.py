@@ -8,6 +8,7 @@ import struct
 import datetime
 from collections import namedtuple
 import numpy as np
+import asd_jump_correction
 
 import ctypes as ct
 
@@ -63,9 +64,11 @@ def parse_bstr(asd, offset):
         raise
 
 
-def parse_time(timestring):
+def parse_time(timestring): 
+    #Month is (so, so strangely) indexed from 0
+    #But day of month is (as usual) indexed from 1
     s = struct.unpack_from('9h', timestring)
-    return datetime.datetime(1900 + s[5], month=s[4], day=s[3], hour=s[2], minute=s[1], second=s[0])
+    return datetime.datetime(1900 + s[5], month=s[4]+1, day=s[3], hour=s[2], minute=s[1], second=s[0])
 
 
 def parse_gps(gps_field):
@@ -75,14 +78,14 @@ def parse_gps(gps_field):
 
 
 def parse_metadata(asd):
-    asdformat = '<3s 157s 18s b b b b l b l f f b b b b b H 128s 56s L hh H H f f f f h b 4b H H H b L HHHH f f f 5b'
+    asdformat = '<3s 157s 18s b b b b l b l f f b b b b b H 128s 56s L h h H H f f f f h b 4b H H H b L H H H H f f f 5b'
     asd_file_info = namedtuple('metadata', '''
      file_version comment save_time parent_version format_version itime 
      dc_corrected dc_time data_type ref_time ch1_wave wave1_step 
      data_format old_dc_count old_ref_count old_sample_count 
      application channels 
      app_data gps_data 
-     intergration_time fo dcc calibration instrument_num
+     integration_time fo dcc calibration instrument_num
      ymin ymax xmin xmax
      ip_numbits xmode flags1 flags2 flags3 flags4
      dc_count ref_count sample_count instrument cal_bulb_id swir1_gain
@@ -98,13 +101,13 @@ def parse_metadata(asd):
     sample_count, instrument, cal_bulb_id, swir1_gain, swir2_gain, swir1_offset, swir2_offset, \
     splice1_wavelength, splice2_wavelength, smart_detector_type, \
     spare1, spare2, spare3, spare4, spare5 = struct.unpack_from(asdformat, asd)
-
+    
     comment = comment.strip(b'\x00')
 
     save_time = parse_time(save_time)
     dc_time = datetime.datetime.fromtimestamp(dc_time)
     ref_time = datetime.datetime.fromtimestamp(ref_time)
-    app_data = ''
+    #app_data = ''
     #*** GPS Data parse is currently not working, as far as I can tell
     # Commenting out this line which clears out the binary so we can find out how to parse it
     #gps_data = ''
@@ -210,18 +213,21 @@ def parse_reference(asd, offset):
     return reference_file_header + (description,), offset
 
 
-def normalise_spectrum(spec, metadata):
+def normalise_spectrum(spec, wvl, metadata):
     res = spec.copy()
 
-    splice1_index = int(metadata.splice1_wavelength)
-    splice2_index = int(metadata.splice2_wavelength)
-
-
-    res[:splice1_index] = spec[:splice1_index] / metadata.intergration_time
-
-    res[splice1_index:splice2_index] = spec[
-                                       splice1_index:splice2_index] * metadata.swir1_gain / 2048
-    res[splice2_index:] = spec[splice2_index:] * metadata.swir1_gain / 2048
+    splice1_index = asd_jump_correction.get_closest_wvl_index(wvl, int(metadata.splice1_wavelength))[0].astype(int) #1000 nm, typically
+    splice2_index = asd_jump_correction.get_closest_wvl_index(wvl, int(metadata.splice2_wavelength))[0].astype(int) #1800 nm, typically
+    
+    #Absolutely no information about where this came from or why it should be accurate
+    
+    #VNIR (through 1000 nm)
+    res[:splice1_index+1] = spec[:splice1_index+1] / metadata.integration_time #Want to include 1000 nm wavlength index
+    #SWIR1 (1001 nm through 1800 nm)
+    res[splice1_index+1:splice2_index+1] = spec[
+                                       splice1_index+1:splice2_index+1] * metadata.swir1_gain / 2048
+    #SWIR2 (1801 nm through end)
+    res[splice2_index+1:] = spec[splice2_index+1:] * metadata.swir2_gain / 2048
     return res
     # spec[idx1] < - spec[idx1] / md$it
     # spec[idx2] < - spec[idx2] * md$swir1_gain / 2048
