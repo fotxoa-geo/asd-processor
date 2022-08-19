@@ -75,43 +75,40 @@ def solve_quadratic_temperature(a,b,c):
     return T, Ts, T_solution
 
 
-def asd_jump_correction(coeffs, spectrum, wvl, interpolate_H2O=False, iterations=3, jump_corr_method = 'hueni', negatives_corr_method='parabolic', interpolate_H2O_method='parabolic'):
+def asd_jump_correction(asd_coeffs, spectrum, wavelengths, interpolate_H2O=False, iterations=3, jump_corr_method = 'hueni', negatives_corr_method='parabolic', interpolate_H2O_method='parabolic'):
     
+    #Options for jump correction:
     #negatives_corr_method = 'parabolic' or 'offset'
     #interpolate_H2O_method = 'smooth' or 'parabolic'
     #jump_corr_method      = 'hueni' or 'asdparabolic'
-    
-    #Change to a loop for iterations
-    #Decide whether we will process one spectra at a time, or if can do multiple
     
     #Spectrum here is a single spectrum
     spectrum     = np.squeeze(spectrum) #Make sure dimension consistent
     spectrum_dim = spectrum.shape
     
-    wvl     = np.squeeze(wvl) #Should be a vector 350 nm:2500nm (2151 elements)
-    wvl_dim = wvl.shape
+    wavelengths     = np.squeeze(wavelengths) #Should be a vector 350 nm:2500nm (2151 elements)
+    wavelengths_dim = wavelengths.shape
     
-
     #Set up jump size matrix to keep track of convergence over iterations
     jump_size_matrix = np.zeros((iterations,2)) #iteration, vnir or swir2 jump size
     
     processing_notes = []
 
     #VNIR Processing indices
-    i725  = get_closest_wvl_index(wvl, 725)[0]
-    i1000 = get_closest_wvl_index(wvl, 1000)[0] #vnir_range_end
-    i1001 = get_closest_wvl_index(wvl, 1001)[0] #swir_range_start
+    i725  = get_closest_wvl_index(wavelengths, 725)[0]
+    i1000 = get_closest_wvl_index(wavelengths, 1000)[0] #vnir_range_end
+    i1001 = get_closest_wvl_index(wavelengths, 1001)[0] #swir_range_start
     
     #Mid-SWIR1 splice band
-    i1726 = get_closest_wvl_index(wvl, 1726)[0] #splice_band
+    i1726 = get_closest_wvl_index(wavelengths, 1726)[0] #splice_band
 
     #SWIR2 Processing indices
-    i1800 = get_closest_wvl_index(wvl, 1800)[0] #swir1_range_end
-    i1801 = get_closest_wvl_index(wvl, 1801)[0] #swir2_range_start
-    i1950 = get_closest_wvl_index(wvl, 1950)[0]
+    i1800 = get_closest_wvl_index(wavelengths, 1800)[0] #swir1_range_end
+    i1801 = get_closest_wvl_index(wavelengths, 1801)[0] #swir2_range_start
+    i1950 = get_closest_wvl_index(wavelengths, 1950)[0]
     
     #SWIR2 splice band
-    i1960 = get_closest_wvl_index(wvl, 1960)[0]
+    i1960 = get_closest_wvl_index(wavelengths, 1960)[0]
 
     ### Pre-process negative radiances in VNIR ###
     # % Special handling for water and other very dark targets that feature negative radiances in the VNIR. Such problems may appear if the radiance signals are very low and the dark current correction (automatic process in the ASD) results in negative digital numbers.
@@ -166,7 +163,7 @@ def asd_jump_correction(coeffs, spectrum, wvl, interpolate_H2O=False, iterations
             # % ASD Parabolic Correction
             corr_factors = np.ones(spectrum.shape)
 
-            y = (((wvl-725)**2) * (spectrum[i1001] - spectrum[i1000])) / (spectrum[i1000] * (1000 - 725)**2) + 1;
+            y = (((wavelengths-725)**2) * (spectrum[i1001] - spectrum[i1000])) / (spectrum[i1000] * (1000 - 725)**2) + 1;
 
             corr_factors[i725:i1000+1]=y[i725:i1000+1]
 
@@ -231,7 +228,7 @@ def asd_jump_correction(coeffs, spectrum, wvl, interpolate_H2O=False, iterations
 
             # % get transformation factors using these temperatures and correct the
             # % spectrum.   
-            T_vector = np.zeros(wvl.shape)
+            T_vector = np.zeros(wavelengths.shape)
             T_vector[:i1726+1] = T_vnir # Will include the i1726 (SWIR1 split band)
             T_vector[i1726+1:] = T_swir
 
@@ -239,6 +236,7 @@ def asd_jump_correction(coeffs, spectrum, wvl, interpolate_H2O=False, iterations
 
             ### Interpolate H2O if desired ###
             if interpolate_H2O:
+                print('WARNING: H2O interpolation methods are not currently well-tested. Proceed with caution.')
 
                 spec_corr_factors_smoothed = spec_corr_factors.copy()
 
@@ -248,19 +246,19 @@ def asd_jump_correction(coeffs, spectrum, wvl, interpolate_H2O=False, iterations
                     #Fit 3rd degree polynomials of spec_corr_factors in VNIR, SWIR1, and SWIR2 bands
                     #And save the fits in spec_corr_factors_smoothed for each
                     #VNIR
-                    c = np.polyfit(wvl[:i1000+1], spec_corr_factors[:i1000+1], 3) 
-                    spec_corr_factors_smoothed[:i1000+1] = np.polyval(c, wvl[:i1000+1]) 
+                    c = np.polyfit(wavelengths[:i1000+1], spec_corr_factors[:i1000+1], 3) 
+                    spec_corr_factors_smoothed[:i1000+1] = np.polyval(c, wavelengths[:i1000+1]) 
                     #SWIR1
-                    c = np.polyfit(wvl[i1001:i1800+1], spec_corr_factors[i1001:i1800+1], 3)
-                    spec_corr_factors_smoothed[i1001:i1800+1] = np.polyval(c, wvl[i1001:i1800+1])
+                    c = np.polyfit(wavelengths[i1001:i1800+1], spec_corr_factors[i1001:i1800+1], 3)
+                    spec_corr_factors_smoothed[i1001:i1800+1] = np.polyval(c, wavelengths[i1001:i1800+1])
                     #SWIR2
-                    c = np.polyfit(wvl[i1801:i1960+1], spec_corr_factors[i1801:i1960+1], 3)
-                    spec_corr_factors_smoothed[i1801:i1960+1] = np.polyval(c, wvl[i1801:i1960+1])
+                    c = np.polyfit(wavelengths[i1801:i1960+1], spec_corr_factors[i1801:i1960+1], 3)
+                    spec_corr_factors_smoothed[i1801:i1960+1] = np.polyval(c, wavelengths[i1801:i1960+1])
 
                     # % avoid overfitting: only smooth bands 1960 nm to end in initial solution
                     if iteration == 0:
-                        c = np.polyfit(wvl[i1960+1:], spec_corr_factors[i1960+1:], 2) #Only using a 2nd degree polynomial here
-                        spec_corr_factors_smoothed[i1960+1:] = np.polyval(c, wvl[i1960+1:])
+                        c = np.polyfit(wavelengths[i1960+1:], spec_corr_factors[i1960+1:], 2) #Only using a 2nd degree polynomial here
+                        spec_corr_factors_smoothed[i1960+1:] = np.polyval(c, wavelengths[i1960+1:])
                     else:
                         # % Approach 2: later SWIR2 part to be set to constant corr value,
                         # % similar to the ASD parabolic correction
@@ -272,13 +270,13 @@ def asd_jump_correction(coeffs, spectrum, wvl, interpolate_H2O=False, iterations
                 elif interpolate_H2O_method == 'parabolic':
                     # % Approach 3: SWIR2 uses parabolic correction
                     #SWIR2: i1801 to the end 
-                    y = (((wvl-1950)**2) * (spectrum[i1800] - spectrum[i1801])) / (spectrum[i1801] * (1800 - 1950)**2) + 1
+                    y = (((wavelengths-1950)**2) * (spectrum[i1800] - spectrum[i1801])) / (spectrum[i1801] * (1800 - 1950)**2) + 1
                     spec_corr_factors_smoothed[i1801:i1950] = y[i1801:i1950]
                     spec_corr_factors_smoothed[i1950:] = 1
 
                     # % Approach 4: VNIR parabolic solution
                     #VNIR: start through i1000
-                    y = (((wvl-725))**2 * (spectrum[i1001] - spectrum[i1000])) / (spectrum[i1000] * (1000 - 725)**2) + 1
+                    y = (((wavelengths-725))**2 * (spectrum[i1001] - spectrum[i1000])) / (spectrum[i1000] * (1000 - 725)**2) + 1
                     spec_corr_factors_smoothed[i725+1:i1000+1] = y[i725+1:i1000+1]
                     spec_corr_factors_smoothed[:i725+1] = 1
 
@@ -315,9 +313,9 @@ def asd_jump_correction(coeffs, spectrum, wvl, interpolate_H2O=False, iterations
             outside_T = np.mean(np.array([T_vnir,T_swir]))
         
     elif jump_corr_method == 'asdparabolic':
-        spec_corr_factors = np.ones(wvl.shape)
-        spec_corr_factors[i725:i1000+1] = 1+((wvl[i725:i1000+1]-725)**2 * (spectrum[i1001]-spectrum[i1000]))/(spectrum[i1000]*(1000-725)**2)
-        spec_corr_factors[i1801:i1950+1] = 1+((wvl[i1801:i1950+1]-1950)**2 * (spectrum[i1800]-spectrum[i1801]))/(spectrum[i1801]*(1801-1950)**2)
+        spec_corr_factors = np.ones(wavelengths.shape)
+        spec_corr_factors[i725:i1000+1] = 1+((wavelengths[i725:i1000+1]-725)**2 * (spectrum[i1001]-spectrum[i1000]))/(spectrum[i1000]*(1000-725)**2)
+        spec_corr_factors[i1801:i1950+1] = 1+((wavelengths[i1801:i1950+1]-1950)**2 * (spectrum[i1800]-spectrum[i1801]))/(spectrum[i1801]*(1801-1950)**2)
         spectrum = spectrum * spec_corr_factors
 
         jump_size_matrix[0,0] = spectrum[i1001]-spectrum[i1000]
@@ -334,7 +332,36 @@ def asd_jump_correction(coeffs, spectrum, wvl, interpolate_H2O=False, iterations
         print(f'Method {jump_corr_method} not recognized. No jump correction performed.')
         processing_notes.append(f'Method {jump_corr_method} not recognized. No jump correction performed.')
             
-
     return spectrum, outside_T, spec_corr_factors, jump_size_matrix, processing_notes
 
+def apply_jump_correction(spectrum_mat, wavelengths, jump_corr_method = 'hueni', iterations=3, negatives_corr_method='parabolic', interpolate_H2O=False, interpolate_H2O_method='parabolic', asd_coeff_path='./ASD_Jump_Correction/ASD_Jump_Correction/asd_temp_corr_coeffs.mat'):
     
+    # Load coefficients matrix for (Hueni method) jump correction
+    coeff_data = scio.loadmat(asd_coeff_path)
+    asd_coeffs = coeff_data['asd_temp_corr_coeffs'] #Checked, and is loading in correct direction 
+    # Note: Coeffs file not included in Github due to memory considerations.
+    # Please see https://www.mathworks.com/matlabcentral/fileexchange/57569-asd-full-range-spectroradiometer-jump-correction to download the data, along with A. Hueni and A. Bialek's original matlab code
+    
+    # Reorder spectrum_mat so iterable direction is axis 0
+    # *** Only deals with 2D spectrum_mat for now
+    if len(spectrum_mat.shape) < 2:
+        #Single spectrum
+        np.expand_dims(spectrum_mat,axis=0)
+        
+    wvl_ax = spectrum_mat.shape == len(wavelengths)
+    if wvl_ax[0]:
+        # Wavelengths are in axis 0
+        spectrum_mat = np.transpose(spectrum_mat)
+    
+    #Spectral jump correction at 1000-1001 nm and 1800-1801 nm
+    for jj in range(spectrum_mat.shape[0]):
+        corr_output = asd_jump_correction(asd_coeffs, spectrum_mat[jj,], wavelengths, jump_corr_method = jump_corr_method,\
+                                          iterations=iterations, negatives_corr_method = negatives_corr_method, \
+                                          interpolate_H2O = interpolate_H2O, interpolate_H2O_method = interpolate_H2O_method) 
+        spectrum_mat[jj,] = corr_output[0] #spectrum only
+        
+    if wvl_ax[0]:
+        # Return to original order
+        spectrum_mat = np.transpose(spectrum_mat)
+        
+    return np.squeeze(spectrum_mat)
