@@ -24,8 +24,6 @@ flag1_swir2_saturation = 4
 Tec1_alarm = 8
 Tec2_alarm = 16
 
-
-
 def parse_constituants(asd, offset):
     name, offset = parse_bstr(asd, offset)
     passfail, offset = parse_bstr(asd, offset)
