@@ -19,6 +19,7 @@
 
 
 import numpy as np
+import scipy.io as scio
 
 def get_closest_wvl_index(wvl, specific_wvl):
     idx = np.unravel_index(np.argmin(abs(wvl - specific_wvl)),wvl.shape)
@@ -75,7 +76,7 @@ def solve_quadratic_temperature(a,b,c):
     return T, Ts, T_solution
 
 
-def asd_jump_correction(asd_coeffs, spectrum, wavelengths, interpolate_H2O=False, iterations=3, jump_corr_method = 'hueni', negatives_corr_method='parabolic', interpolate_H2O_method='parabolic'):
+def asd_jump_correction(coeffs, spectrum, wavelengths, interpolate_H2O=False, iterations=3, jump_corr_method = 'hueni', negatives_corr_method='parabolic', interpolate_H2O_method='parabolic'):
     
     #Options for jump correction:
     #negatives_corr_method = 'parabolic' or 'offset'
@@ -348,7 +349,7 @@ def apply_jump_correction(spectrum_mat, wavelengths, jump_corr_method = 'hueni',
         #Single spectrum
         np.expand_dims(spectrum_mat,axis=0)
         
-    wvl_ax = spectrum_mat.shape == len(wavelengths)
+    wvl_ax = np.array(spectrum_mat.shape) == len(wavelengths)
     if wvl_ax[0]:
         # Wavelengths are in axis 0
         spectrum_mat = np.transpose(spectrum_mat)
