@@ -266,10 +266,10 @@ class processor:
     def process_wr_RAW(self):
         # Raw mode, where white reference standard measurements are interspersed among target measurements in spectra_mat
 
-        print(f'Using index {args.known_ref_idx} as a known white reference spectra.')
+        print(f'Using index {self.known_ref_idx} as a known white reference spectra.')
 
         #Identify reference spectra
-        known_ref   = self.spectra_mat[args.known_ref_idx,]
+        known_ref   = self.spectra_mat[self.known_ref_idx,]
         cos_sim_vec = cos_sim_to_ref(self.spectra_mat,known_ref)
 
         ref_threshold = 0.9999
@@ -313,7 +313,7 @@ class processor:
             # *** Should probably throw an error instead
             quit()
         
-        print(f'Number of unique white reference groups detected: {np.max(self.ref_group)}')
+        print(f'Number of unique white reference groups detected: {np.max(self.ref_group)+1}')
         
         # Populates meas_i, ref_mat, ref_i, ref_group fields
         # Identify white reference outliers
@@ -346,10 +346,14 @@ class processor:
             self.ref_mean_mat[ii,:] = mean
             self.ref_std_mat[ii,:]  = std_dev
             self.ref_mean_i[ii]     = np.mean(self.ref_i[use_idx]) #Mean time stamp
-            
+        
+        #Value to fill with if we have spectra before / after the white reference range
+        fill_value = (self.ref_mean_mat[0,:],self.ref_mean_mat[-1,:])
+        
         # Create interpolator
         #Interpolate in 1D down the references, with ref_mean_i as the "time" axis
-        ref_func = scinterp.interp1d(self.ref_mean_i, self.ref_mean_mat, kind = interp_method, axis = 0)
+        ref_func = scinterp.interp1d(self.ref_mean_i, self.ref_mean_mat, kind = interp_method, axis = 0,\
+                                    bounds_error = False, fill_value = fill_value)
         
         # Apply interpolator
         #Return interpolated white references at the "time points" of the measurements
@@ -362,7 +366,9 @@ class processor:
         
         spectra_index  = np.arange(self.spectra_mat.shape[0]) 
         meas_i         = spectra_index[self.type_flag == 1] #Index of measurements
-        if len(self.ref_group)>1:
+        ref_group_unique  = np.unique(self.ref_group)
+        n_groups          = len(ref_group_unique)
+        if n_groups>1:
             #If we have more than one white reference group to work with
             ref_interp_mat = self.interpolate_white_references(meas_i, interp_method = interp_method)
         else:
@@ -391,7 +397,7 @@ class processor:
         meas_idx = self.type_flag == 1
         return self.reflectance_mat[meas_idx,:]
     
-    def apply_jump_correction(self,jump_corr_method=None,jump_corr_iterations=None):
+    def apply_jump_correction(self,jump_corr_method=None,jump_corr_iterations=None,asd_coeff_path='./ASD_Jump_Correction/ASD_Jump_Correction/asd_temp_corr_coeffs.mat'):
         meas_idx = self.type_flag == 1
         if jump_corr_method is None:
             jump_corr_method = self.jump_corr_method
@@ -399,7 +405,7 @@ class processor:
             jump_corr_iterations = self.jump_corr_iterations
             
         print(jump_corr_method, jump_corr_iterations)
-        self.reflectance_mat[meas_idx,:] = asd_jump_correction.apply_jump_correction(self.reflectance_mat[meas_idx,:], self.wavelengths,jump_corr_method = jump_corr_method, iterations=jump_corr_iterations)   
+        self.reflectance_mat[meas_idx,:] = asd_jump_correction.apply_jump_correction(self.reflectance_mat[meas_idx,:], self.wavelengths,jump_corr_method = jump_corr_method, iterations=jump_corr_iterations, asd_coeff_path = asd_coeff_path)   
         return self.reflectance_mat[meas_idx,:]
     
     def apply_corrections(self,corr_list = 'all',jump_corr_method=None,jump_corr_iterations=None):
@@ -416,10 +422,11 @@ class processor:
         return self.reflectance_mat[meas_idx,:]
         
     def calculate_outliers(self, std_sigma_factor = 3, cossim_threshold = 0.985):
-        meas_idx = self.type_flag == 1
+        meas_idx = np.where(self.type_flag == 1)[0]
         #Only calculate outliers for valid measurements
         outliers = calculate_outliers(self.reflectance_mat[meas_idx,:], good_bands_idx = self.good_bands_idx, std_sigma_factor = std_sigma_factor, cossim_threshold = cossim_threshold)
-        self.type_flag[meas_idx][outliers] = -1 #Mark outliers
+        outlier_idx = meas_idx[outliers]
+        self.type_flag[outlier_idx] = -1 #Mark outliers
         return outliers
             
     def calculate_final_reflectance(self):
