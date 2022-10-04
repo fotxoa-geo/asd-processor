@@ -335,7 +335,7 @@ def asd_jump_correction(coeffs, spectrum, wavelengths, interpolate_H2O=False, it
             
     return spectrum, outside_T, spec_corr_factors, jump_size_matrix, processing_notes
 
-def apply_jump_correction(spectrum_mat, wavelengths, jump_corr_method = 'hueni', iterations=3, negatives_corr_method='parabolic', interpolate_H2O=False, interpolate_H2O_method='parabolic', asd_coeff_path='./ASD_Jump_Correction/ASD_Jump_Correction/asd_temp_corr_coeffs.mat'):
+def apply_jump_correction(spectrum_mat, wavelengths, jump_corr_method = 'hueni', iterations=3, negatives_corr_method='parabolic', interpolate_H2O=False, interpolate_H2O_method='parabolic', asd_coeff_path='./correction_data/asd_temp_corr_coeffs.mat'):
     
     # Load coefficients matrix for (Hueni method) jump correction
     coeff_data = scio.loadmat(asd_coeff_path)

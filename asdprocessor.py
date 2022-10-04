@@ -397,7 +397,7 @@ class processor:
         meas_idx = self.type_flag == 1
         return self.reflectance_mat[meas_idx,:]
     
-    def apply_jump_correction(self,jump_corr_method=None,jump_corr_iterations=None,asd_coeff_path='./ASD_Jump_Correction/ASD_Jump_Correction/asd_temp_corr_coeffs.mat'):
+    def apply_jump_correction(self,jump_corr_method=None,jump_corr_iterations=None,asd_coeff_path='./correction_data/asd_temp_corr_coeffs.mat'):
         meas_idx = self.type_flag == 1
         if jump_corr_method is None:
             jump_corr_method = self.jump_corr_method
